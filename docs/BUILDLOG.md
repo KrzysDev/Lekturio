@@ -20,5 +20,64 @@ When I was talking with Claude about the project it found something very interes
 
 File doing that can be found in ```/src/lekturio/tools/book_collector.py```. The goal of the file is to download every book on my desktop, then i will be able to iterate through the pdfs, chunk them and insert those chunks into vector database.
 
+## The JSON structure
+I have to use JSON structure for payload in vector database. It is very important how this payload will be structured because it will be embedded and then retrived by the LLM.
+Firstly i came up with something like this:
+
+```json
+{
+    "id" : uuid,
+    "lektura" : "Lalka"
+    "metadane" : {
+        "rozdział" : 2,
+        "strona" : 198,
+        "wektor" : [1, 0.1.....]
+        "char_range" : [11411, 25444]
+    }
+
+    "fragment" : [
+        "something something something lorem ipsum lorem ipsum"
+    ]
+    "autor" : "Bolesław Prus"
+}
+```
+
+After brainstorming my idea with AI i saw that structure I came up with was not really a good idea. Firstly - there is no need to store vector in the payload (I dont know why i did that), secondly it can be much more simplified. Thats what Claude gave me:
+
+```json
+    {
+        "id": "lalka_0042",
+        "book_slug": "lalka",
+        "title": "Lalka",
+        "author": "Bolesław Prus",
+        "fragment": "Wokulski spojrzał na Izabelę i poczuł...",
+        "chunk_index": 42,
+        "location": {
+                "chapter": "Tom I, rozdział 3",
+                "char_range": [12400, 12850]
+            },
+        "source_url": "https://wolnelektury.pl/media/book/txt/lalka.txt"
+    }
+```
+
+But I also don't agree with that structure. First off all there is no need for "book_slug" field. That would make sens if I had LOTS of books like thousands, hundrets of them - not 40. Then sure I would want to have field that is unchanged and nothing will break if i change the title. But in my case it is not nedeed in my opininon. On top of that source_url also will not be used by anything in this software. There is no method, endpoint, function anything that will use that.
+
+After reconsideration i will go with this structure:
+
+```json
+    {
+        "id": "lalka_0042",
+        "title": "Lalka",
+        "author": "Bolesław Prus",
+        "fragment": "Wokulski spojrzał na Izabelę i poczuł...",
+        "chunk_index": 42,
+        "location": {
+                "chapter": "Tom I, rozdział 3",
+                "char_range": [12400, 12850]
+            }
+    }
+```
+
+
 
 
