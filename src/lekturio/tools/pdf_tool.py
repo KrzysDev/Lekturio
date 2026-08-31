@@ -1,36 +1,25 @@
 from pathlib import Path
-import fitz
-import easyocr
-
-ocr_reader = easyocr.Reader(['pl', 'en'])
+import pypdfium2 as pdfium
+import tkinter as tk
+from tkinter import filedialog
 
 
 def extract_text(path: Path) -> str:
-    whole_text = []
-    doc = fitz.open(path)
+    doc = pdfium.PdfDocument(path)
 
-    for page_num in range(len(doc)):
-        page = doc.load_page(page_num)
-
-        zoom = 2.0
-        mat = fitz.Matrix(zoom, zoom)
-        pix = page.get_pixmap(matrix=mat)
-
-        image_bytes = pix.tobytes("png")
-
-        page_lines = ocr_reader.readtext(image_bytes, detail=0)
-
-        page_text = "\n".join(page_lines)
-        whole_text.append(page_text)
-        print(f"Page {page_num + 1}/{len(doc)} done.")
+    whole_text = "\n".join(
+        page.get_textpage().get_text_range()
+        for page in doc
+    )
 
     doc.close()
 
-    return "\n\n".join(whole_text)
+    return whole_text
+
 
 def chunk_text(
-    whole_text: str, 
-    chunk_size: int = 300, 
+    whole_text: str,
+    chunk_size: int = 300,
     overlap: int = 50
 ) -> list[str]:
     if overlap >= chunk_size:
@@ -41,7 +30,7 @@ def chunk_text(
         return []
 
     chunks = []
-    step = chunk_size - overlap  
+    step = chunk_size - overlap
 
     for i in range(0, len(words), step):
         chunk = " ".join(words[i : i + chunk_size])
@@ -53,10 +42,37 @@ def chunk_text(
     return chunks
 
 
+def select_pdf_file() -> Path | None:
+    root = tk.Tk()
+    root.withdraw()
+
+    file_path = filedialog.askopenfilename(
+        title="Wybierz plik PDF",
+        filetypes=[("Pliki PDF", "*.pdf")]
+    )
+
+    root.destroy()
+
+    if not file_path:
+        return None
+
+    return Path(file_path)
+
+
 if __name__ == "__main__":
-    print(chunk_text("Lorem ipsum, lorem ipsum, lorem ipsum, something something something something something something"), 3)
+    pdf_path = select_pdf_file()
 
-    
+    if pdf_path is None:
+        print("Nie wybrano żadnego pliku.")
+    else:
+        print(f"Wybrany plik: {pdf_path}")
 
+        text = extract_text(pdf_path)
+        print("\n--- Wyekstrahowany tekst ---")
+        print(text)
 
-
+        chunks = chunk_text(text)
+        print(f"\nLiczba chunków: {len(chunks)}")
+        for i, chunk in enumerate(chunks, start=1):
+            print(f"\n--- Chunk {i} ---")
+            print(chunk)

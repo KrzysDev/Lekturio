@@ -4,10 +4,12 @@ import unicodedata
 from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
+from pgvector.psycopg import register_vector
 import tkinter
 from tkinter import filedialog
 from dotenv import load_dotenv, find_dotenv
 from lekturio.tools.pdf_tool import extract_text, chunk_text
+from lekturio.services.embeddings_service import EmbeddingsService
 
 
 load_dotenv(find_dotenv())
@@ -31,13 +33,15 @@ def parse_title_and_author(filename_stem: str) -> tuple[str, str | None]:
 
 
 def get_db_connection():
-    return psycopg.connect(
+    conn = psycopg.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=int(os.getenv("POSTGRES_PORT", 5432)),
         dbname=os.environ["POSTGRES_DB"],
         user=os.environ["POSTGRES_USER"],
         password=os.environ["POSTGRES_PASSWORD"],
     )
+    register_vector(conn)
+    return conn
 
 
 def init_db(conn):
@@ -52,15 +56,18 @@ def init_db(conn):
                 chunk_index INT NOT NULL,
                 chapter TEXT,
                 location JSONB,
-                embedding vector(1024)
+                embedding vector
             );
         """)
+        cur.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS location JSONB;")
+        cur.execute("ALTER TABLE chunks ALTER COLUMN embedding TYPE vector;")
         conn.commit()
 
 
 def main():
     conn = get_db_connection()
     init_db(conn)
+    embeddings_service = EmbeddingsService()
     print("Connected to PostgreSQL database and initialized 'chunks' table.")
 
     root = tkinter.Tk()
@@ -104,12 +111,16 @@ def main():
             chunks = chunk_text(text, chunk_size=300, overlap=50)
             print(f"Created {len(chunks)} chunks.")
 
+            print("Generating embeddings...")
+            embeddings = embeddings_service.embed_text(chunks)
+            print(f"Generated {len(embeddings)} embeddings.")
+
             title, author = parse_title_and_author(pdf_path.stem)
             book_slug = slugify(title)
 
             with conn.cursor() as cur:
                 last_char_pos = 0
-                for idx, chunk in enumerate(chunks, start=1):
+                for idx, (chunk, emb) in enumerate(zip(chunks, embeddings), start=1):
                     chunk_id = f"{book_slug}_{idx:04d}"
 
                     char_start = text.find(chunk[:50], last_char_pos)
@@ -133,7 +144,8 @@ def main():
                             fragment = EXCLUDED.fragment,
                             chunk_index = EXCLUDED.chunk_index,
                             chapter = EXCLUDED.chapter,
-                            location = EXCLUDED.location;
+                            location = EXCLUDED.location,
+                            embedding = EXCLUDED.embedding;
                         """,
                         (
                             chunk_id,
@@ -143,12 +155,12 @@ def main():
                             idx,
                             location["chapter"],
                             Jsonb(location),
-                            None
+                            emb
                         )
                     )
 
                 conn.commit()
-                print(f"Saved {len(chunks)} chunks for '{title}' in the database.")
+                print(f"Saved {len(chunks)} chunks with embeddings for '{title}' in the database.")
 
         except Exception as e:
             conn.rollback()
