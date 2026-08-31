@@ -1,4 +1,4 @@
-# "Lekturio" - Software Development Document
+# "Lekturio" - My 10x Solution
 
 ## The problem
 
