@@ -78,6 +78,10 @@ After reconsideration i will go with this structure:
     }
 ```
 
+## Chunking and inserting chunks into database
+
+AI suggested that the best approach is to use OCR when standard ways of parsing a pdf will fail (due to weird formatting). So i did try this, but formatting was even worse - every word had its own line (in other words, every word was in diffrent line of the file). I decided to google other ways of extracting data from pdf's, found the docs and delegated this task to AI to code it for me. I want to be honest - for now i do not know how to do it better. The formating sometimes breaks but i hope it will not affect retrival that much.
+
 
 
 
