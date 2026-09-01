@@ -22,13 +22,65 @@ def slugify(text: str) -> str:
     return re.sub(r"[-\s]+", "_", text)
 
 
+BOOK_AUTHORS = {
+    "Antygona": ("Antygona", "Sofokles"),
+    "Makbet": ("Makbet", "William Szekspir"),
+    "Skąpiec": ("Skąpiec", "Molier"),
+    "Lalka": ("Lalka", "Bolesław Prus"),
+    "Wesele": ("Wesele", "Stanisław Wyspiański"),
+    "Przedwiośnie": ("Przedwiośnie", "Stefan Żeromski"),
+    "Proszę państwa do gazu": ("Proszę państwa do gazu", "Tadeusz Borowski"),
+    "Rok 1984": ("Rok 1984", "George Orwell"),
+    "Tango": ("Tango", "Sławomir Mrożek"),
+    "Balladyna": ("Balladyna", "Juliusz Słowacki"),
+    "Zemsta": ("Zemsta", "Aleksander Fredro"),
+    "Bogurodzica": ("Bogurodzica", "Anonim"),
+    "Lament świętokrzyski": ("Lament świętokrzyski", "Anonim"),
+    "Rozmowa Mistrza Polikarpa ze Śmiercią": ("Rozmowa Mistrza Polikarpa ze Śmiercią", "Anonim"),
+    "Pieśń o Rolandzie": ("Pieśń o Rolandzie", "Anonim"),
+    "Mitologia (Grecja)": ("Mitologia (Grecja)", "Jan Parandowski"),
+    "Biblia (fragmenty)": ("Biblia (fragmenty)", "Anonim"),
+    "Iliada (fragmenty)": ("Iliada (fragmenty)", "Homer"),
+    "Potop (fragmenty)": ("Potop (fragmenty)", "Henryk Sienkiewicz"),
+    "Chłopi (fragmenty)": ("Chłopi (fragmenty)", "Władysław Reymont"),
+    "Pan Tadeusz (fragmenty)": ("Pan Tadeusz (fragmenty)", "Adam Mickiewicz"),
+    "dziady-dziady-poema-dziady-czesc-ii": ("Dziady cz. II", "Adam Mickiewicz"),
+    "dziady-dziady-poema-dziady-czesc-iii": ("Dziady cz. III", "Adam Mickiewicz"),
+    "Dziady cz. II": ("Dziady cz. II", "Adam Mickiewicz"),
+    "Dziady cz. III": ("Dziady cz. III", "Adam Mickiewicz"),
+    "Kochanowski — Pieśń IX ks. I": ("Pieśń IX ks. I", "Jan Kochanowski"),
+    "Kochanowski — Pieśń V ks. II": ("Pieśń V ks. II", "Jan Kochanowski"),
+    "Kochanowski — Treny (IX, X, XI, XIX)": ("Treny (IX, X, XI, XIX)", "Jan Kochanowski"),
+    "Krasicki — Hymn do miłości ojczyzny": ("Hymn do miłości ojczyzny", "Ignacy Krasicki"),
+    "Mickiewicz — Oda do młodości": ("Oda do młodości", "Adam Mickiewicz"),
+    "Mickiewicz — Romantyczność": ("Romantyczność", "Adam Mickiewicz"),
+    "Słowacki — Testament mój": ("Testament mój", "Juliusz Słowacki"),
+    "Zbrodnia i kara": ("Zbrodnia i kara", "Fiodor Dostojewski"),
+    "Zdążyć przed Panem Bogiem": ("Zdążyć przed Panem Bogiem", "Hanna Krall"),
+    "Dżuma": ("Dżuma", "Albert Camus"),
+    "Ferdydurke (fragmenty)": ("Ferdydurke (fragmenty)", "Witold Gombrowicz"),
+    "Inny świat (fragmenty)": ("Inny świat (fragmenty)", "Gustaw Herling-Grudziński"),
+    "Podróże z Herodotem (fragmenty)": ("Podróże z Herodotem (fragmenty)", "Ryszard Kapuściński"),
+    "Bajki (Krasicki)": ("Bajki", "Ignacy Krasicki"),
+}
+
+
 def parse_title_and_author(filename_stem: str) -> tuple[str, str | None]:
+    if filename_stem in BOOK_AUTHORS:
+        return BOOK_AUTHORS[filename_stem]
+
+    norm_stem = filename_stem.lower().strip()
+    for key, (title, author) in BOOK_AUTHORS.items():
+        if key.lower().strip() == norm_stem:
+            return title, author
+
     if " — " in filename_stem:
         parts = filename_stem.split(" — ", 1)
         return parts[1].strip(), parts[0].strip()
     if " - " in filename_stem:
         parts = filename_stem.split(" - ", 1)
         return parts[1].strip(), parts[0].strip()
+
     return filename_stem.strip(), None
 
 
@@ -59,6 +111,7 @@ def init_db(conn):
                 embedding vector
             );
         """)
+        cur.execute("ALTER TABLE chunks DROP COLUMN IF EXISTS chapter;")
         cur.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page INT;")
         cur.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS location JSONB;")
         cur.execute("ALTER TABLE chunks ALTER COLUMN embedding TYPE vector;")
