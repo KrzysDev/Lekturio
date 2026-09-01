@@ -72,7 +72,7 @@ After reconsideration i will go with this structure:
         "fragment": "Wokulski spojrzał na Izabelę i poczuł...",
         "chunk_index": 42,
         "location": {
-                "chapter": "Tom I, rozdział 3",
+                "page": 129,
                 "char_range": [12400, 12850]
             }
     }

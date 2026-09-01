@@ -8,7 +8,7 @@ from pgvector.psycopg import register_vector
 import tkinter
 from tkinter import filedialog
 from dotenv import load_dotenv, find_dotenv
-from lekturio.tools.pdf_tool import extract_text, chunk_text
+from lekturio.tools.pdf_tool import extract_pages, chunk_text
 from lekturio.services.embeddings_service import EmbeddingsService
 
 
@@ -54,11 +54,12 @@ def init_db(conn):
                 author TEXT,
                 fragment TEXT NOT NULL,
                 chunk_index INT NOT NULL,
-                chapter TEXT,
+                page INT,
                 location JSONB,
                 embedding vector
             );
         """)
+        cur.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page INT;")
         cur.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS location JSONB;")
         cur.execute("ALTER TABLE chunks ALTER COLUMN embedding TYPE vector;")
         conn.commit()
@@ -101,49 +102,57 @@ def main():
         print("==========================================")
 
         try:
-            text = extract_text(pdf_path)
-            if not text.strip():
-                print(f"Empty text for {pdf_path.name}, skipping.")
+            pages = extract_pages(pdf_path)
+            if not pages:
+                print(f"No text extracted for {pdf_path.name}, skipping.")
                 continue
 
-            print(f"Extracted {len(text)} characters from {pdf_path.name}.")
+            book_chunks = []
+            for page_num, page_text in pages:
+                page_chunk_texts = chunk_text(page_text, chunk_size=300, overlap=50)
+                last_pos = 0
+                for chunk in page_chunk_texts:
+                    start_char = page_text.find(chunk[:50], last_pos)
+                    if start_char == -1:
+                        start_char = last_pos
+                    end_char = start_char + len(chunk)
+                    last_pos = start_char
 
-            chunks = chunk_text(text, chunk_size=300, overlap=50)
-            print(f"Created {len(chunks)} chunks.")
+                    book_chunks.append({
+                        "page": page_num,
+                        "text": chunk,
+                        "char_range": [start_char, end_char]
+                    })
+
+            print(f"Extracted {len(pages)} pages and created {len(book_chunks)} chunks.")
 
             print("Generating embeddings...")
-            embeddings = embeddings_service.embed_text(chunks)
+            chunk_texts = [c["text"] for c in book_chunks]
+            embeddings = embeddings_service.embed_text(chunk_texts)
             print(f"Generated {len(embeddings)} embeddings.")
 
             title, author = parse_title_and_author(pdf_path.stem)
             book_slug = slugify(title)
 
             with conn.cursor() as cur:
-                last_char_pos = 0
-                for idx, (chunk, emb) in enumerate(zip(chunks, embeddings), start=1):
+                for idx, (item, emb) in enumerate(zip(book_chunks, embeddings), start=1):
                     chunk_id = f"{book_slug}_{idx:04d}"
 
-                    char_start = text.find(chunk[:50], last_char_pos)
-                    if char_start == -1:
-                        char_start = last_char_pos
-                    char_end = char_start + len(chunk)
-                    last_char_pos = char_start
-
                     location = {
-                        "chapter": None,
-                        "char_range": [char_start, char_end]
+                        "page": item["page"],
+                        "char_range": item["char_range"]
                     }
 
                     cur.execute(
                         """
-                        INSERT INTO chunks (id, title, author, fragment, chunk_index, chapter, location, embedding)
+                        INSERT INTO chunks (id, title, author, fragment, chunk_index, page, location, embedding)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             title = EXCLUDED.title,
                             author = EXCLUDED.author,
                             fragment = EXCLUDED.fragment,
                             chunk_index = EXCLUDED.chunk_index,
-                            chapter = EXCLUDED.chapter,
+                            page = EXCLUDED.page,
                             location = EXCLUDED.location,
                             embedding = EXCLUDED.embedding;
                         """,
@@ -151,16 +160,16 @@ def main():
                             chunk_id,
                             title,
                             author,
-                            chunk,
+                            item["text"],
                             idx,
-                            location["chapter"],
+                            item["page"],
                             Jsonb(location),
                             emb
                         )
                     )
 
                 conn.commit()
-                print(f"Saved {len(chunks)} chunks with embeddings for '{title}' in the database.")
+                print(f"Saved {len(book_chunks)} chunks with embeddings for '{title}' in the database.")
 
         except Exception as e:
             conn.rollback()

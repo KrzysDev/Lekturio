@@ -4,17 +4,17 @@ import tkinter as tk
 from tkinter import filedialog
 
 
-def extract_text(path: Path) -> str:
+def extract_pages(path: Path) -> list[tuple[int, str]]:
     doc = pdfium.PdfDocument(path)
+    pages = []
 
-    whole_text = "\n".join(
-        page.get_textpage().get_text_range()
-        for page in doc
-    )
+    for page_num, page in enumerate(doc, start=1):
+        text = page.get_textpage().get_text_range()
+        if text.strip():
+            pages.append((page_num, text))
 
     doc.close()
-
-    return whole_text
+    return pages
 
 
 def chunk_text(
@@ -47,8 +47,8 @@ def select_pdf_file() -> Path | None:
     root.withdraw()
 
     file_path = filedialog.askopenfilename(
-        title="Wybierz plik PDF",
-        filetypes=[("Pliki PDF", "*.pdf")]
+        title="Select PDF file",
+        filetypes=[("PDF files", "*.pdf")]
     )
 
     root.destroy()
@@ -63,16 +63,12 @@ if __name__ == "__main__":
     pdf_path = select_pdf_file()
 
     if pdf_path is None:
-        print("Nie wybrano żadnego pliku.")
+        print("No file selected.")
     else:
-        print(f"Wybrany plik: {pdf_path}")
+        print(f"Selected file: {pdf_path}")
+        pages = extract_pages(pdf_path)
+        print(f"Total non-empty pages: {len(pages)}")
 
-        text = extract_text(pdf_path)
-        print("\n--- Wyekstrahowany tekst ---")
-        print(text)
-
-        chunks = chunk_text(text)
-        print(f"\nLiczba chunków: {len(chunks)}")
-        for i, chunk in enumerate(chunks, start=1):
-            print(f"\n--- Chunk {i} ---")
-            print(chunk)
+        for page_num, text in pages[:2]:
+            print(f"\n--- Page {page_num} ---")
+            print(text[:200])
