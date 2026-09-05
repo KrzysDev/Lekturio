@@ -1,4 +1,15 @@
-from .schemas import QuestionAnswer, QuestionAnswerSet
+from .schemas import (
+    QuestionAnswer,
+    QuestionAnswerSet,
+    AskRequest,
+    SourceFragment,
+    AskResponse,
+)
 
-__all__ = ["QuestionAnswer", "QuestionAnswerSet"]
-
+__all__ = [
+    "QuestionAnswer",
+    "QuestionAnswerSet",
+    "AskRequest",
+    "SourceFragment",
+    "AskResponse",
+]

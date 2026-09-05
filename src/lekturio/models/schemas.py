@@ -2,17 +2,35 @@ from pydantic import BaseModel, Field
 
 
 class QuestionAnswer(BaseModel):
-    question: str = Field(description="Pytanie dotyczące treści podanego fragmentu książki")
-    answer: str = Field(description="Zwięzła, merytoryczna odpowiedź na pytanie na podstawie fragmentu")
-    quote_from_book: str = Field(description="Dokładny cytat lub fragment tekstu z książki potwierdzający odpowiedź")
+    question: str = Field(description="Precyzyjne, kontekstowe pytanie egzaminacyjne z imionami bohaterów i tytułem lektury")
+    answer: str = Field(description="Zwięzła, merytoryczna odpowiedź na pytanie na podstawie fragmentu tekstu")
+    quote_from_book: str = Field(description="Dokładny cytat z podanego fragmentu potwierdzający odpowiedź")
 
 
 class QuestionAnswerSet(BaseModel):
     qa_pairs: list[QuestionAnswer] = Field(
-        default_factory=list,
-        description="Lista od 2 do 5 pytań i odpowiedzi na podstawie tekstu bieżącej strony, lub pusta lista jeśli strona jest pusta/tytułowa"
+        description="Wymagana lista od 2 do 5 wygenerowanych pytań i odpowiedzi"
     )
-    summary: str = Field(
-        default="",
-        description="Zwięzłe podsumowanie (2-3 zdania) wydarzeń z tej strony w kontekście dotychczasowej fabuły, służące jako kontekst dla kolejnych stron"
+    summary: str | None = Field(
+        default=None,
+        description="Opcjonalne krótkie podsumowanie"
     )
+
+
+class AskRequest(BaseModel):
+    query: str = Field(..., min_length=3, description="Pytanie użytkownika dotyczące lektury")
+
+
+class SourceFragment(BaseModel):
+    id: str
+    title: str
+    author: str | None = None
+    chunk_index: int
+    similarity: float
+    fragment: str
+
+
+class AskResponse(BaseModel):
+    query: str
+    answer: str
+    sources: list[SourceFragment] = Field(default_factory=list)
