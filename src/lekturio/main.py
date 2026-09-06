@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from lekturio.api.routers.retrival_router import router as retrival_router
+from lekturio.api.routers.agent_router import router as agent_router
 
 app = FastAPI(
     title="Lekturio API",
@@ -19,6 +20,7 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(retrival_router)
+app.include_router(agent_router)
 
 
 @app.get("/", summary="Status API")

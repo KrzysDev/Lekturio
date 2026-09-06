@@ -97,6 +97,38 @@ class RetrivalService:
             })
         return results
 
+    def get_similar_hype_questions(self, text: str, limit: int = 5) -> list[dict]:
+        """Search HyPE questions and return matching answers."""
+        embeddings = self.embedding_service.embed_text(text)
+        embedding_vector = embeddings[0] if embeddings else None
+
+        self.cursor.execute(
+            """
+            SELECT id, title, author, fragment, chunk_index, location, questions,
+                   1 - (question_embedding <=> %s::vector) AS similarity
+            FROM chunks
+            WHERE question_embedding IS NOT NULL
+            ORDER BY question_embedding <=> %s::vector
+            LIMIT %s;
+            """,
+            (embedding_vector, embedding_vector, limit),
+        )
+
+        rows = self.cursor.fetchall()
+        results = []
+        for row in rows:
+            results.append({
+                "id": row[0],
+                "title": row[1],
+                "author": row[2],
+                "fragment": row[3],
+                "chunk_index": row[4],
+                "location": row[5],
+                "questions": row[6],
+                "similarity": float(row[7]) if row[7] is not None else 0.0,
+            })
+        return results
+
 
 def print_search_results(title_header: str, results: list[dict]):
     print("\n" + "=" * 70)
