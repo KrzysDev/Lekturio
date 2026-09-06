@@ -2,7 +2,12 @@ import json
 from lekturio.services.ai_service import AiService
 from lekturio.services.embeddings_service import EmbeddingsService
 from lekturio.services.retrival_service import RetrivalService
-from lekturio.models.schemas import PromptEvaluation, SearchQuery
+from lekturio.models.prompts import (
+    build_prompt_evaluation_prompt,
+    build_adapt_hype_answer_prompt,
+    build_generate_queries_prompt,
+    build_final_answer_prompt,
+)
 
 
 class AgentService:
@@ -46,18 +51,7 @@ class AgentService:
     
     def _needs_search(self, question: str) -> bool:
         """Sprawdź czy pytanie wymaga wyszukiwania w lekturze."""
-        prompt = f"""Oceń czy to pytanie wymaga wyszukiwania informacji w treści lektury szkolnej.
-
-Pytanie: {question}
-
-Odpowiedz JSON: {{"needs_search": true}} lub {{"needs_search": false}}
-
-Zasady:
-- needs_search = true: pytanie o konkretny fragment, cytat, wydarzenie, postać z lektury
-- needs_search = false: ogólne pytanie, pozdrowienie, pytanie o samego agenta
-
-JSON:"""
-        
+        prompt = build_prompt_evaluation_prompt(question)
         response = self.ai.ask(prompt)
         try:
             data = json.loads(response)
@@ -89,32 +83,17 @@ JSON:"""
     
     def _adapt_hype_answer(self, user_question: str, hype_answer: str, source: dict) -> str:
         """Dopasuj odpowiedź HyPE do pytania użytkownika."""
-        prompt = f"""Użytkownik zadał pytanie: {user_question}
-
-W bazie znalazłem bardzo podobne pytanie z odpowiedzią: {hype_answer}
-
-Źródło: {source['title']} ({source['author']})
-
-Zadanie: Użyj tej odpowiedzi i dopasuj ją do pytania użytkownika. Jeśli odpowiedź HyPE nie odpowiada w pełni na pytanie, dopowiedz brakujące informacje na podstawie kontekstu. Jeśli odpowiedź HyPE jest wystarczająca, po prostu ją zwróć.
-
-Odpowiedź:"""
-        
+        prompt = build_adapt_hype_answer_prompt(
+            user_question, 
+            hype_answer, 
+            source['title'], 
+            source.get('author', 'Nieznany')
+        )
         return self.ai.ask(prompt)
     
     def _generate_queries(self, question: str) -> list[str]:
         """Wygeneruj zapytania do wyszukiwania."""
-        prompt = f"""Wygeneruj zapytania do wyszukiwania informacji w lekturze.
-
-Pytanie: {question}
-
-Zadanie: Stwórz 2-4 zapytania:
-1. Pytania w formie pytań (jak w HyPE) - pełne zdania pytające
-2. Krótkie zapytania (jak do Google) - 2-4 słowa kluczowe
-
-Odpowiedz JSON: {{"queries": ["pytanie 1", "zapytanie 2", ...]}}
-
-JSON:"""
-        
+        prompt = build_generate_queries_prompt(question)
         response = self.ai.ask(prompt)
         try:
             data = json.loads(response)
@@ -149,24 +128,8 @@ JSON:"""
         if not chunks:
             return "Nie znalazłem żadnych fragmentów dotyczących tego pytania w dostępnych lekturach."
         
-        # Przygotuj kontekst
         context = self._format_chunks(chunks)
-        
-        prompt = f"""Odpowiedz na pytanie na podstawie dostarczonych fragmentów lektury.
-
-Pytanie: {question}
-
-Fragmenty:
-{context}
-
-Zasady:
-1. Odpowiadaj TYLKO na podstawie dostarczonych fragmentów
-2. Jeśli fragmenty nie zawierają pełnej odpowiedzi, napisz co znalazłeś i wyraźnie powiedz czego brakuje
-3. Używaj cytatów z fragmentów aby poprzeć swoje twierdzenia
-4. Nie wymyślaj informacji których nie ma w fragmentach
-
-Odpowiedź:"""
-        
+        prompt = build_final_answer_prompt(question, context)
         return self.ai.ask(prompt)
     
     def _format_chunks(self, chunks: list[dict]) -> str:
